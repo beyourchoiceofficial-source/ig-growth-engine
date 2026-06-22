@@ -42,13 +42,8 @@ export default function App() {
 
   // Load Supabase key from API
   useEffect(()=>{
-    fetch("/api/config").then(r=>r.json()).then(d=>{
-      if(d.key) {
-        setSbKey(d.key);
-        loadPosts(d.key);
-        loadInsight(d.key);
-      }
-    }).catch(()=>{});
+    loadPosts(eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraWRkeHdtZXFpaHV2eXdpcmVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMzY1NDIsImV4cCI6MjA5NzcxMjU0Mn0.WeSpPxunVfNQ9yuvBdcxQUtKp4wEJAly5BDnStBqzDA);
+loadInsight(eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraWRkeHdtZXFpaHV2eXdpcmVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMzY1NDIsImV4cCI6MjA5NzcxMjU0Mn0.WeSpPxunVfNQ9yuvBdcxQUtKp4wEJAly5BDnStBqzDA);
   },[]);
 
   async function loadPosts(key) {
