@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const C = {
   bg:"#080b14", surface:"#0e1320", panel:"#131926", border:"#1e2a3a",
@@ -37,6 +37,13 @@ export default function App() {
     setTimeout(()=>setToast(null),4000);
   };
 
+  // Auto sync when switching to analyze tab with no data
+  useEffect(()=>{
+    if(nav==="analyze" && posts.length===0) {
+      syncIG();
+    }
+  },[nav]);
+
   async function syncIG() {
     setSyncing(true);
     try {
@@ -58,10 +65,10 @@ export default function App() {
     setAnalyzing(true);
     try {
       const res = await fetch("/api/analyze", {
-  method:"POST",
-  headers:{"Content-Type":"application/json"},
-  body: JSON.stringify({posts})
-});
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({posts})
+      });
       const data = await res.json();
       if(data.error) showToast("❌ "+data.error, C.red);
       else { setInsight(data.analysis); showToast("✅ AI 分析完成！"); }
@@ -95,7 +102,6 @@ export default function App() {
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Inter',-apple-system,sans-serif",display:"flex",flexDirection:"column"}}>
-      {/* Header */}
       <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:10}}>
         <div style={{width:34,height:34,borderRadius:9,background:`linear-gradient(135deg,${C.blue},${C.purple})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>⚡</div>
         <div>
@@ -110,17 +116,14 @@ export default function App() {
         )}
       </div>
 
-      {/* Toast */}
       {toast && (
         <div style={{position:"fixed",top:70,left:"50%",transform:"translateX(-50%)",background:toast.color,color:"#fff",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:600,zIndex:200,boxShadow:"0 4px 20px #0008",whiteSpace:"nowrap"}}>
           {toast.msg}
         </div>
       )}
 
-      {/* Content */}
       <div style={{flex:1,padding:"20px 16px",maxWidth:760,margin:"0 auto",width:"100%",boxSizing:"border-box"}}>
 
-        {/* HOME */}
         {nav==="home" && (
           <div>
             <div style={{background:`linear-gradient(135deg,${C.blue}15,${C.purple}10)`,border:`1px solid ${C.blue}30`,borderRadius:16,padding:"24px",marginBottom:20}}>
@@ -151,7 +154,6 @@ export default function App() {
                     </Panel>
                   ))}
                 </div>
-
                 <Panel>
                   <SL>帖子排行（真实数据）</SL>
                   {sortedPosts.slice(0,5).map((post,i)=>(
@@ -167,7 +169,12 @@ export default function App() {
                           <Pill text={`👁${post.reach||0}`} color={C.blue}/>
                         </div>
                       </div>
-                      <div style={{color:parseFloat(post.engagement_rate)>5?C.green:C.amber,fontWeight:800,fontSize:16,flexShrink:0}}>{post.engagement_rate}%</div>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",flexShrink:0,gap:4}}>
+                        <div style={{color:parseFloat(post.engagement_rate)>5?C.green:C.amber,fontWeight:800,fontSize:16}}>{post.engagement_rate}%</div>
+                        {post.permalink && (
+                          <a href={post.permalink} target="_blank" rel="noreferrer" style={{color:C.blue,fontSize:11,textDecoration:"none"}}>▶ 查看</a>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </Panel>
@@ -202,7 +209,6 @@ export default function App() {
           </div>
         )}
 
-        {/* POSTS */}
         {nav==="posts" && (
           <div>
             <SL>所有帖子 ({posts.length})</SL>
@@ -225,9 +231,9 @@ export default function App() {
                       <Pill text={`👁 ${post.reach||0}`} color={C.amber}/>
                     </div>
                   </div>
-                  <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{textAlign:"right",flexShrink:0,display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
                     <div style={{color:parseFloat(post.engagement_rate)>5?C.green:C.amber,fontWeight:800,fontSize:16}}>{post.engagement_rate}%</div>
-                    {post.permalink && <a href={post.permalink} target="_blank" rel="noreferrer" style={{color:C.blue,fontSize:11}}>查看↗</a>}
+                    {post.permalink && <a href={post.permalink} target="_blank" rel="noreferrer" style={{color:C.blue,fontSize:11,textDecoration:"none"}}>▶ 查看</a>}
                   </div>
                 </Panel>
               ))}
@@ -235,22 +241,15 @@ export default function App() {
           </div>
         )}
 
-        {/* ANALYZE */}
-        
-          <div>useEffect(()=>{ 
-  if(nav==="analyze" && posts.length===0) syncIG(); 
-},[nav]);
+        {nav==="analyze" && (
+          <div>
             <Panel style={{marginBottom:16}}>
               <SL>AI 内容分析引擎</SL>
               <div style={{color:C.muted,fontSize:13,marginBottom:16,lineHeight:1.7}}>
-                基于你 {posts.length} 条真实帖子，Claude 分析最爆内容、最佳时间、最强 Hook
+                {syncing ? "⏳ 正在同步数据..." : `基于你 ${posts.length} 条真实帖子，Claude 分析最爆内容、最佳时间、最强 Hook`}
               </div>
-              {posts.length===0 && (
-  <button onClick={syncIG} disabled={syncing} style={{background:C.green,color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:12}}>
-    {syncing?"⏳ 同步中...":"🔄 先同步 IG 数据"}
-  </button>
-)}
-                {analyzing?"🧠 分析中...":"🤖 开始 AI 分析"}
+              <button onClick={analyze} disabled={analyzing||posts.length===0||syncing} style={{background:analyzing||posts.length===0||syncing?"#333":C.purple,color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:analyzing||posts.length===0||syncing?"not-allowed":"pointer"}}>
+                {analyzing?"🧠 分析中...":syncing?"⏳ 等待同步...":"🤖 开始 AI 分析"}
               </button>
             </Panel>
             {insight && (
@@ -291,7 +290,6 @@ export default function App() {
           </div>
         )}
 
-        {/* CAPTION */}
         {nav==="caption" && (
           <div>
             <Panel style={{marginBottom:16}}>
@@ -321,7 +319,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Bottom Nav */}
       <div style={{background:C.surface,borderTop:`1px solid ${C.border}`,display:"flex",position:"sticky",bottom:0,zIndex:10}}>
         {NAVS.map(n=>(
           <button key={n.id} onClick={()=>setNav(n.id)} style={{flex:1,background:"none",border:"none",padding:"10px 4px 8px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:nav===n.id?`2px solid ${C.blue}`:"2px solid transparent"}}>
