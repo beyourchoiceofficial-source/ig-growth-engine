@@ -236,14 +236,18 @@ export default function App() {
         )}
 
         {/* ANALYZE */}
-        {nav==="analyze" && (
+        {useEffect(()=>{ if(nav==="analyze" && posts.length===0) syncIG(); },[nav]);
           <div>
             <Panel style={{marginBottom:16}}>
               <SL>AI 内容分析引擎</SL>
               <div style={{color:C.muted,fontSize:13,marginBottom:16,lineHeight:1.7}}>
                 基于你 {posts.length} 条真实帖子，Claude 分析最爆内容、最佳时间、最强 Hook
               </div>
-              <button onClick={analyze} disabled={analyzing||posts.length===0} style={{background:analyzing||posts.length===0?"#333":C.purple,color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:analyzing||posts.length===0?"not-allowed":"pointer"}}>
+              {posts.length===0 && (
+  <button onClick={syncIG} disabled={syncing} style={{background:C.green,color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:12}}>
+    {syncing?"⏳ 同步中...":"🔄 先同步 IG 数据"}
+  </button>
+)}
                 {analyzing?"🧠 分析中...":"🤖 开始 AI 分析"}
               </button>
             </Panel>
