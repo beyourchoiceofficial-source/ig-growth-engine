@@ -57,7 +57,11 @@ export default function App() {
     if(posts.length===0) { showToast("请先同步 IG 数据", C.red); return; }
     setAnalyzing(true);
     try {
-      const res = await fetch("/api/analyze", {method:"POST"});
+      const res = await fetch("/api/analyze", {
+  method:"POST",
+  headers:{"Content-Type":"application/json"},
+  body: JSON.stringify({posts})
+});
       const data = await res.json();
       if(data.error) showToast("❌ "+data.error, C.red);
       else { setInsight(data.analysis); showToast("✅ AI 分析完成！"); }
