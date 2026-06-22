@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const C = {
   bg:"#080b14", surface:"#0e1320", panel:"#131926", border:"#1e2a3a",
@@ -18,8 +18,6 @@ function SL({children}) {
   return <div style={{color:C.muted,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:14}}>{children}</div>;
 }
 
-const SUPABASE_URL = "https://ikiddxwmeqihuvywirep.supabase.co";
-
 export default function App() {
   const [nav, setNav] = useState("home");
   const [posts, setPosts] = useState([]);
@@ -28,7 +26,6 @@ export default function App() {
   const [syncing, setSyncing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [toast, setToast] = useState(null);
-  const [sbKey, setSbKey] = useState("");
   const [topic, setTopic] = useState("");
   const [format, setFormat] = useState("Reel");
   const [goal, setGoal] = useState("涨粉");
@@ -40,55 +37,24 @@ export default function App() {
     setTimeout(()=>setToast(null),4000);
   };
 
-  // Load Supabase key from API
-  useEffect(()=>{
-    loadPosts("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraWRkeHdtZXFpaHV2eXdpcmVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMzY1NDIsImV4cCI6MjA5NzcxMjU0Mn0.WeSpPxunVfNQ9yuvBdcxQUtKp4wEJAly5BDnStBqzDA");
-loadInsight("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraWRkeHdtZXFpaHV2eXdpcmVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMzY1NDIsImV4cCI6MjA5NzcxMjU0Mn0.WeSpPxunVfNQ9yuvBdcxQUtKp4wEJAly5BDnStBqzDA");
-  },[]);
-
-  async function loadPosts(key) {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/posts?order=published_at.desc&limit=50`, {
-        headers: { "apikey": key, "Authorization": `Bearer ${key}`, "Content-Type": "application/json" }
-      });
-      const data = await res.json();
-      if(Array.isArray(data)) setPosts(data);
-    } catch(e) { console.error(e); }
-  }
-
-  async function loadInsight(key) {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/ai_insights?order=created_at.desc&limit=1`, {
-        headers: { "apikey": key, "Authorization": `Bearer ${key}` }
-      });
-      const data = await res.json();
-      if(Array.isArray(data) && data.length) {
-        const i = data[0];
-        setInsight({
-          ...i,
-          top_topics: typeof i.top_topics==="string"?JSON.parse(i.top_topics||"[]"):i.top_topics||[],
-          recommendations: typeof i.recommendations==="string"?JSON.parse(i.recommendations||"[]"):i.recommendations||[],
-        });
-      }
-    } catch(e) { console.error(e); }
-  }
-
   async function syncIG() {
     setSyncing(true);
     try {
       const res = await fetch("/api/ig");
       const data = await res.json();
-      if(data.error) showToast("❌ "+data.error, C.red);
-      else {
+      if(data.error) {
+        showToast("❌ "+data.error, C.red);
+      } else {
         setProfile(data.profile);
+        setPosts(data.posts || []);
         showToast(`✅ 同步成功！${data.synced} 条帖子`);
-        if(sbKey) { await loadPosts(sbKey); }
       }
     } catch(e) { showToast("❌ "+e.message, C.red); }
     setSyncing(false);
   }
 
   async function analyze() {
+    if(posts.length===0) { showToast("请先同步 IG 数据", C.red); return; }
     setAnalyzing(true);
     try {
       const res = await fetch("/api/analyze", {method:"POST"});
@@ -105,7 +71,7 @@ loadInsight("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi
     try {
       const res = await fetch("/api/generate", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({type:format, topic, account:"eugene_mkting55", goal})
+        body: JSON.stringify({type:format, topic, account: profile?.username||"eugene_mkting55", goal})
       });
       const data = await res.json();
       setCaption(data.content || data.error || "生成失败");
@@ -114,9 +80,14 @@ loadInsight("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi
   }
 
   const avgER = posts.length ? (posts.reduce((s,p)=>s+parseFloat(p.engagement_rate||0),0)/posts.length).toFixed(1) : 0;
-  const viralScore = Math.min(100, Math.round(parseFloat(avgER)*10));
+  const sortedPosts = [...posts].sort((a,b)=>b.engagement_rate-a.engagement_rate);
 
-  const NAVS = [{id:"home",label:"总部",icon:"⚡"},{id:"posts",label:"帖子",icon:"📊"},{id:"analyze",label:"分析",icon:"🧬"},{id:"caption",label:"文案",icon:"✍️"}];
+  const NAVS = [
+    {id:"home",label:"总部",icon:"⚡"},
+    {id:"posts",label:"帖子",icon:"📊"},
+    {id:"analyze",label:"分析",icon:"🧬"},
+    {id:"caption",label:"文案",icon:"✍️"}
+  ];
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Inter',-apple-system,sans-serif",display:"flex",flexDirection:"column"}}>
@@ -148,13 +119,12 @@ loadInsight("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi
         {/* HOME */}
         {nav==="home" && (
           <div>
-            {/* Hero Card */}
             <div style={{background:`linear-gradient(135deg,${C.blue}15,${C.purple}10)`,border:`1px solid ${C.blue}30`,borderRadius:16,padding:"24px",marginBottom:20}}>
               <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
                 <div style={{flex:1}}>
                   <div style={{color:C.muted,fontSize:11,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>已连接账号</div>
                   <div style={{color:C.text,fontSize:26,fontWeight:800}}>@{profile?.username||"eugene_mkting55"}</div>
-                  <div style={{color:C.green,fontSize:13,marginTop:4}}>{profile?.followers_count||28} 粉丝 · {posts.length} 条帖子已同步</div>
+                  <div style={{color:C.green,fontSize:13,marginTop:4}}>{posts.length} 条帖子已同步</div>
                 </div>
                 <button onClick={syncIG} disabled={syncing} style={{background:syncing?"#333":C.green,color:"#fff",border:"none",borderRadius:10,padding:"12px 24px",fontSize:14,fontWeight:700,cursor:syncing?"not-allowed":"pointer"}}>
                   {syncing?"⏳ 同步中...":"🔄 同步 IG 数据"}
@@ -162,47 +132,54 @@ loadInsight("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi
               </div>
             </div>
 
-            {/* Stats */}
             {posts.length > 0 && (
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
-                {[
-                  {l:"平均互动率",v:`${avgER}%`,c:C.blue},
-                  {l:"帖子总数",v:posts.length,c:C.purple},
-                  {l:"最高互动",v:`${[...posts].sort((a,b)=>b.engagement_rate-a.engagement_rate)[0]?.engagement_rate||0}%`,c:C.green},
-                  {l:"总保存数",v:posts.reduce((s,p)=>s+(p.saves||0),0),c:C.amber},
-                ].map(s=>(
-                  <Panel key={s.l}>
-                    <div style={{color:C.muted,fontSize:10,letterSpacing:1}}>{s.l}</div>
-                    <div style={{color:s.c,fontSize:24,fontWeight:800,marginTop:4}}>{s.v}</div>
-                  </Panel>
-                ))}
-              </div>
+              <>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+                  {[
+                    {l:"平均互动率",v:`${avgER}%`,c:C.blue},
+                    {l:"帖子总数",v:posts.length,c:C.purple},
+                    {l:"最高互动",v:`${sortedPosts[0]?.engagement_rate||0}%`,c:C.green},
+                    {l:"总保存数",v:posts.reduce((s,p)=>s+(p.saves||0),0),c:C.amber},
+                  ].map(s=>(
+                    <Panel key={s.l}>
+                      <div style={{color:C.muted,fontSize:10,letterSpacing:1}}>{s.l}</div>
+                      <div style={{color:s.c,fontSize:24,fontWeight:800,marginTop:4}}>{s.v}</div>
+                    </Panel>
+                  ))}
+                </div>
+
+                <Panel>
+                  <SL>帖子排行（真实数据）</SL>
+                  {sortedPosts.slice(0,5).map((post,i)=>(
+                    <div key={post.ig_post_id||i} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center"}}>
+                      <div style={{width:26,height:26,borderRadius:6,background:i===0?C.amber+"22":C.dim,display:"flex",alignItems:"center",justifyContent:"center",color:i===0?C.amber:C.muted,fontWeight:800,fontSize:11,flexShrink:0}}>#{i+1}</div>
+                      {post.thumbnail_url && <img src={post.thumbnail_url} style={{width:44,height:44,borderRadius:8,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{color:C.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:4}}>{post.caption?.substring(0,60)||"(无文案)"}</div>
+                        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                          <Pill text={post.type||"POST"} color={C.cyan}/>
+                          <Pill text={`❤️${post.likes||0}`} color={C.pink}/>
+                          <Pill text={`🔖${post.saves||0}`} color={C.purple}/>
+                          <Pill text={`👁${post.reach||0}`} color={C.blue}/>
+                        </div>
+                      </div>
+                      <div style={{color:parseFloat(post.engagement_rate)>5?C.green:C.amber,fontWeight:800,fontSize:16,flexShrink:0}}>{post.engagement_rate}%</div>
+                    </div>
+                  ))}
+                </Panel>
+              </>
             )}
 
-            {/* Top Posts */}
-            {posts.length > 0 && (
+            {posts.length===0 && (
               <Panel>
-                <SL>帖子排行（真实数据）</SL>
-                {[...posts].sort((a,b)=>b.engagement_rate-a.engagement_rate).slice(0,5).map((post,i)=>(
-                  <div key={post.id||i} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center"}}>
-                    <div style={{width:26,height:26,borderRadius:6,background:i===0?C.amber+"22":C.dim,display:"flex",alignItems:"center",justifyContent:"center",color:i===0?C.amber:C.muted,fontWeight:800,fontSize:11,flexShrink:0}}>#{i+1}</div>
-                    {post.thumbnail_url && <img src={post.thumbnail_url} style={{width:44,height:44,borderRadius:8,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>}
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{color:C.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:4}}>{post.caption?.substring(0,60)||"(无文案)"}</div>
-                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                        <Pill text={post.type||"POST"} color={C.cyan}/>
-                        <Pill text={`❤️${post.likes||0}`} color={C.pink}/>
-                        <Pill text={`🔖${post.saves||0}`} color={C.purple}/>
-                        <Pill text={`👁${post.reach||0}`} color={C.blue}/>
-                      </div>
-                    </div>
-                    <div style={{color:parseFloat(post.engagement_rate)>5?C.green:C.amber,fontWeight:800,fontSize:16,flexShrink:0}}>{post.engagement_rate}%</div>
-                  </div>
-                ))}
+                <div style={{textAlign:"center",padding:"40px 0",color:C.muted}}>
+                  <div style={{fontSize:40,marginBottom:12}}>📱</div>
+                  <div style={{fontSize:15,marginBottom:8}}>还没有数据</div>
+                  <div style={{fontSize:13}}>点击上方「同步 IG 数据」开始</div>
+                </div>
               </Panel>
             )}
 
-            {/* AI Insight */}
             {insight && (
               <Panel style={{marginTop:16}}>
                 <SL>🤖 AI 分析结果</SL>
@@ -225,10 +202,14 @@ loadInsight("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi
         {nav==="posts" && (
           <div>
             <SL>所有帖子 ({posts.length})</SL>
-            {posts.length===0 && <Panel><div style={{color:C.muted,textAlign:"center",padding:"30px 0"}}>还没有数据，请先在总部同步 IG</div></Panel>}
+            {posts.length===0 && (
+              <Panel>
+                <div style={{color:C.muted,textAlign:"center",padding:"30px 0"}}>还没有数据，请先在总部同步 IG</div>
+              </Panel>
+            )}
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {[...posts].sort((a,b)=>b.engagement_rate-a.engagement_rate).map((post,i)=>(
-                <Panel key={post.id||i} style={{display:"flex",gap:12,alignItems:"center"}}>
+              {sortedPosts.map((post,i)=>(
+                <Panel key={post.ig_post_id||i} style={{display:"flex",gap:12,alignItems:"center"}}>
                   {post.thumbnail_url && <img src={post.thumbnail_url} style={{width:52,height:52,borderRadius:8,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>}
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{color:C.text,fontSize:12,marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{post.caption?.substring(0,70)||"(无文案)"}</div>
@@ -261,7 +242,6 @@ loadInsight("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi
               <button onClick={analyze} disabled={analyzing||posts.length===0} style={{background:analyzing||posts.length===0?"#333":C.purple,color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:analyzing||posts.length===0?"not-allowed":"pointer"}}>
                 {analyzing?"🧠 分析中...":"🤖 开始 AI 分析"}
               </button>
-              {posts.length===0 && <div style={{color:C.red,fontSize:12,marginTop:8}}>请先同步 IG 数据</div>}
             </Panel>
             {insight && (
               <Panel>
