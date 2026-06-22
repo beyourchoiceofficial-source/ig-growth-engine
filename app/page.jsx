@@ -290,8 +290,8 @@ export default function App() {
 
   async function loadFromSupabase() {
     try {
-      const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const sbUrl = "https://ikiddxwmeqihuvywirep.supabase.co";
+      const sbKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraWRkeHdtZXFpaHV2eXdpcmVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMzY1NDIsImV4cCI6MjA5NzcxMjU0Mn0.WeSpPxunVfNQ9yuvBdcxQUtKp4wEJAly5BDnStBqzDA";
       if(!sbUrl||!sbKey) return;
 
       // Load posts
