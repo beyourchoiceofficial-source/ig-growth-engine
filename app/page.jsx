@@ -236,8 +236,10 @@ export default function App() {
         )}
 
         {/* ANALYZE */}
-        {useEffect(()=>{ if(nav==="analyze" && posts.length===0) syncIG(); },[nav]);
-          <div>
+        
+          <div>useEffect(()=>{ 
+  if(nav==="analyze" && posts.length===0) syncIG(); 
+},[nav]);
             <Panel style={{marginBottom:16}}>
               <SL>AI 内容分析引擎</SL>
               <div style={{color:C.muted,fontSize:13,marginBottom:16,lineHeight:1.7}}>
