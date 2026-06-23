@@ -1,19 +1,14 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const token = process.env.INSTAGRAM_ACCESS_TOKEN;
-    if (!token) return NextResponse.json({ error: "No Instagram token" }, { status: 400 });
+    const { searchParams } = new URL(req.url);
+    const token = searchParams.get("token") || process.env.INSTAGRAM_ACCESS_TOKEN;
+    if (!token) return NextResponse.json({ error: "No token" }, { status: 400 });
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    );
-
-    // Get profile
+    // Get profile with followers
     const profileRes = await fetch(
-      `https://graph.instagram.com/me?fields=id,username,media_count&access_token=${token}`
+      `https://graph.instagram.com/me?fields=id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url&access_token=${token}`
     );
     const profile = await profileRes.json();
     if (profile.error) return NextResponse.json({ error: profile.error.message }, { status: 400 });
@@ -29,10 +24,11 @@ export async function GET() {
     const savedPosts = [];
 
     for (const post of posts) {
-      let saves = 0, reach = 0, impressions = 0;
+      let saves = 0, reach = 0, impressions = 0, video_views = 0;
       try {
+        const metrics = post.media_type === "VIDEO" ? "reach,impressions,saved,video_views" : "reach,impressions,saved";
         const insightRes = await fetch(
-          `https://graph.instagram.com/${post.id}/insights?metric=reach,impressions,saved&access_token=${token}`
+          `https://graph.instagram.com/${post.id}/insights?metric=${metrics}&access_token=${token}`
         );
         const insightData = await insightRes.json();
         if (insightData.data) {
@@ -40,6 +36,7 @@ export async function GET() {
             if (m.name === "reach") reach = m.values?.[0]?.value || 0;
             if (m.name === "impressions") impressions = m.values?.[0]?.value || 0;
             if (m.name === "saved") saves = m.values?.[0]?.value || 0;
+            if (m.name === "video_views") video_views = m.values?.[0]?.value || 0;
           });
         }
       } catch {}
@@ -49,28 +46,20 @@ export async function GET() {
       const total = likes + comments + saves;
       const er = reach > 0 ? parseFloat(((total / reach) * 100).toFixed(2)) : 0;
 
-      const postData = {
+      savedPosts.push({
         ig_post_id: post.id,
+        username: profile.username,
         type: post.media_type,
         caption: post.caption || "",
         published_at: post.timestamp,
-        likes, comments, saves, reach, impressions,
+        likes, comments, saves, reach, impressions, video_views,
         engagement_rate: er,
         thumbnail_url: post.thumbnail_url || post.media_url || "",
         permalink: post.permalink || "",
-      };
-
-      await supabase.from("posts").upsert(postData, { onConflict: "ig_post_id" });
-      savedPosts.push(postData);
+      });
     }
 
-    // Return posts directly so frontend can display immediately
-    return NextResponse.json({ 
-      success: true, 
-      synced: posts.length, 
-      profile,
-      posts: savedPosts
-    });
+    return NextResponse.json({ success: true, synced: posts.length, profile, posts: savedPosts });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
