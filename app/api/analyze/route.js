@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req) {
   try {
-    const { posts, strategy } = await req.json();
+    const { posts, strategy, username } = await req.json();
     if (!posts?.length) return NextResponse.json({ error: "No posts" }, { status: 400 });
 
     const strategyCtx = strategy?.positioning
@@ -14,11 +15,11 @@ export async function POST(req) {
       headers: { "Content-Type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
         model: "claude-sonnet-4-6", max_tokens: 2500,
-        messages: [{ role: "user", content: `你是专业Instagram内容分析师。分析以下数据并只返回JSON。
+        messages: [{ role: "user", content: `你是专业Instagram内容分析师。只返回JSON。
 
 ${strategyCtx}
 
-帖子数据：${JSON.stringify(posts.map(p => ({ type: p.type, caption: p.caption?.substring(0, 120), likes: p.likes || 0, comments: p.comments || 0, saves: p.saves || 0, reach: p.reach || 0, video_views: p.video_views || 0, er: p.engagement_rate || 0, date: p.published_at })))}
+帖子数据：${JSON.stringify(posts.map(p => ({ type: p.type, caption: p.caption?.substring(0, 120), likes: p.likes||0, comments: p.comments||0, saves: p.saves||0, reach: p.reach||0, video_views: p.video_views||0, er: p.engagement_rate||0, date: p.published_at })))}
 
 返回JSON：
 {
@@ -30,6 +31,7 @@ ${strategyCtx}
   "tomorrow_idea": "具体内容题目",
   "growth_bottleneck": "最大增长瓶颈",
   "recommendations": ["建议1","建议2","建议3"],
+  "style_dna": "这个账号的内容DNA特征",
   "video_analysis": [
     {
       "caption": "前20字",
@@ -41,9 +43,9 @@ ${strategyCtx}
       "cta_score": 60,
       "cta_feedback": "CTA分析",
       "virality_score": 68,
-      "why_stopped": "为什么推流中断的分析",
+      "why_stopped": "推流中断原因",
       "rewrite_hook": "改进版Hook",
-      "overall": 71
+      "rewrite_script": "根据弱点生成的完整改进脚本"
     }
   ]
 }` }],
@@ -59,6 +61,19 @@ ${strategyCtx}
     let analysis;
     try { analysis = JSON.parse(match ? match[0] : text); }
     catch { analysis = { overall_score: 50, tomorrow_idea: text, recommendations: [], video_analysis: [] }; }
+
+    // Save to Supabase
+    try {
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      await supabase.from("ai_insights").upsert({
+        username, overall_score: analysis.overall_score,
+        best_post_type: analysis.best_post_type, best_time: analysis.best_time,
+        best_hook: analysis.best_hook, top_topics: analysis.top_topics,
+        recommendations: analysis.recommendations, video_analysis: analysis.video_analysis,
+        tomorrow_idea: analysis.tomorrow_idea, growth_bottleneck: analysis.growth_bottleneck,
+        style_dna: analysis.style_dna, analyzed_at: new Date().toISOString(),
+      }, { onConflict: "username" });
+    } catch {}
 
     return NextResponse.json({ success: true, analysis });
   } catch (e) {
