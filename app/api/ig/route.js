@@ -7,13 +7,22 @@ export async function GET(req) {
     const token = searchParams.get("token") || process.env.INSTAGRAM_ACCESS_TOKEN;
     if (!token) return NextResponse.json({ error: "No token" }, { status: 400 });
 
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
 
-    const profileRes = await fetch(`https://graph.instagram.com/me?fields=id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url&access_token=${token}`);
+    // Get profile
+    const profileRes = await fetch(
+      `https://graph.instagram.com/me?fields=id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url&access_token=${token}`
+    );
     const profile = await profileRes.json();
     if (profile.error) return NextResponse.json({ error: profile.error.message }, { status: 400 });
 
-    const mediaRes = await fetch(`https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${token}`);
+    // Get media
+    const mediaRes = await fetch(
+      `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${token}`
+    );
     const mediaData = await mediaRes.json();
     if (mediaData.error) return NextResponse.json({ error: mediaData.error.message }, { status: 400 });
 
@@ -39,24 +48,32 @@ export async function GET(req) {
       const er = reach > 0 ? parseFloat(((likes + comments + saves) / reach * 100).toFixed(2)) : 0;
 
       const postData = {
-        ig_post_id: post.id, username: profile.username, type: post.media_type,
-        caption: post.caption || "", published_at: post.timestamp,
+        ig_post_id: post.id,
+        username: profile.username,
+        type: post.media_type,
+        caption: post.caption || "",
+        published_at: post.timestamp,
         likes, comments, saves, reach, impressions, video_views,
-        engagement_rate: er, thumbnail_url: post.thumbnail_url || post.media_url || "",
+        engagement_rate: er,
+        thumbnail_url: post.thumbnail_url || post.media_url || "",
         permalink: post.permalink || "",
       };
 
-      await supabase.from("posts").upsert(postData, { onConflict: "ig_post_id" });
+      try {
+        await supabase.from("posts").upsert(postData, { onConflict: "ig_post_id" });
+      } catch {}
+      
       savedPosts.push(postData);
     }
 
-    // Save follower snapshot
-    await supabase.from("follower_snapshots").upsert({
-      username: profile.username, followers: profile.followers_count || 0,
-      snapshot_date: new Date().toISOString().split("T")[0],
-    }, { onConflict: "username,snapshot_date" }).catch(() => {});
+    // Return posts directly - no follower_snapshots write
+    return NextResponse.json({ 
+      success: true, 
+      synced: posts.length, 
+      profile, 
+      posts: savedPosts 
+    });
 
-    return NextResponse.json({ success: true, synced: posts.length, profile, posts: savedPosts });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
