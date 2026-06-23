@@ -1,4 +1,3 @@
-cat > app/api/analyze/route.js << 'EOF'
 import { NextResponse } from "next/server";
 
 export async function POST(req) {
@@ -20,8 +19,8 @@ export async function POST(req) {
         system: "你是Instagram内容分析师。只返回JSON，不要加任何其他文字。",
         messages: [{
           role: "user",
-          content: `分析这${posts.length}条IG帖子数据：${JSON.stringify(posts.map(p=>({type:p.type,caption:p.caption?.substring(0,80),likes:p.likes||0})))}
-只返回这个JSON：{"best_post_type":"类型","best_time":"时间","best_hook":"Hook方式","top_topics":["话题1","话题2"],"tomorrow_idea":"明天发什么","recommendations":["建议1","建议2","建议3"]}`
+          content: `分析这${posts.length}条IG帖子：${JSON.stringify(posts.map(p=>({type:p.type,caption:p.caption?.substring(0,80),likes:p.likes||0})))}
+只返回JSON：{"best_post_type":"类型","best_time":"时间","best_hook":"Hook方式","top_topics":["话题1","话题2"],"tomorrow_idea":"明天发什么","recommendations":["建议1","建议2","建议3"]}`
         }],
       }),
     });
@@ -39,4 +38,3 @@ export async function POST(req) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
-EOF
